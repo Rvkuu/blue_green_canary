@@ -1,0 +1,62 @@
+services:
+  migrate:
+    build: ./app/v1
+    image: blue-green-v1:local
+    command: ["npm", "run", "migrate"]
+    environment:
+      DATABASE_PATH: /data/links.sqlite
+    volumes:
+      - links-data:/data
+
+  v1:
+    build: ./app/v1
+    image: blue-green-v1:local
+    environment:
+      DATABASE_PATH: /data/links.sqlite
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-http://localhost:8080}"
+    ports:
+      - "3001:3001"
+    volumes:
+      - links-data:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  v2:
+    build: ./app/v2
+    image: blue-green-v2:local
+    environment:
+      DATABASE_PATH: /data/links.sqlite
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-http://localhost:8080}"
+    ports:
+      - "3002:3002"
+    volumes:
+      - links-data:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  nginx:
+    build: ./nginx
+    ports:
+      - "8080:80"
+    depends_on:
+      v1:
+        condition: service_healthy
+      v2:
+        condition: service_healthy
+
+volumes:
+  links-data:

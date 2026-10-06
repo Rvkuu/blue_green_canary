@@ -1,0 +1,37 @@
+name: CI/CD
+
+on:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            app/v1/package-lock.json
+            app/v2/package-lock.json
+      - name: Install v1 dependencies
+        run: npm ci
+        working-directory: app/v1
+      - name: Run v1 tests
+        run: npm test
+        working-directory: app/v1
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Build v1 image
+        run: docker build -t blue-green-v1 ./app/v1
+      - name: Install v2 dependencies
+        run: npm ci
+        working-directory: app/v2
+      - name: Run v2 tests
+        run: npm test
+        working-directory: app/v2
+      - name: Build v2 image
+        run: docker build -t blue-green-v2 ./app/v2
+      - name: Build nginx image
+        run: docker build -t blue-green-nginx ./nginx
